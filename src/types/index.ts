@@ -1,105 +1,166 @@
-export type SubsystemTab = 
-  | 'overview' 
+import type { Timestamp } from 'firebase/firestore';
+
+export type SubsystemTab =
+  | 'overview'
+  | 'protection'
   | 'incident'
-  | 'vault' 
-  | 'network' 
-  | 'compliance' 
-  | 'emergency';
+  | 'network'
+  | 'emergency'
+  | 'compliance'
+  | 'vault';
 
-export interface IncidentTimelineItem {
-  id: string;
-  timestamp: string;
-  title: string;
-  plainMeaning: string;
-  triageLevel: 'High triage' | 'Medium triage' | 'Low triage' | 'Resolved';
-  details?: string;
+/** Firestore timestamps arrive as Timestamp, or null briefly while a write is pending. */
+export type When = Timestamp | null;
+
+export interface UserProfile {
+  displayName: string;
+  email: string;
+  photoURL?: string | null;
+  role?: string;
+  incidentCounter?: number;
+  checklist?: Record<string, boolean>;
+  activeSosId?: string | null;
+  createdAt?: When;
+  lastSeenAt?: When;
 }
 
-export interface SecurityIncident {
+export type EventType = 'url_check' | 'password_check' | 'checkup' | 'domain_scan' | 'sos';
+export type Verdict = 'safe' | 'suspicious' | 'dangerous' | 'info';
+
+export interface SecurityEvent {
   id: string;
-  tenantCode: string;
+  type: EventType;
+  verdict: Verdict;
   title: string;
-  statusBadge: 'Informational' | 'Escalated' | 'Resolved';
-  version: string;
-  severityTier: 'L1' | 'L2' | 'L3';
-  alertProduct: string;
-  classification: string;
-  aiConfidence: 'High' | 'Medium' | 'Low';
-  opened: string;
-  closed: string;
-  issued: string;
+  detail?: string;
+  createdAt: When;
+}
+
+export type Severity = 'low' | 'medium' | 'high' | 'critical';
+export type IncidentStatus = 'open' | 'investigating' | 'resolved';
+
+export interface TimelineEntry {
+  id: string;
+  at: number; // epoch ms (arrays can't hold serverTimestamp)
+  kind: 'created' | 'note' | 'status' | 'severity' | 'checklist' | 'auto';
+  text: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface Incident {
+  id: string;
+  number: number;
+  title: string;
+  category: string;
+  severity: Severity;
+  status: IncidentStatus;
   summary: string;
-  fullReport: string;
-  decisions: string;
-  timeline: IncidentTimelineItem[];
+  details?: string;
+  source: 'manual' | 'url_check' | 'domain_scan' | 'password_check';
+  sourceRef?: string;
+  timeline: TimelineEntry[];
+  checklist: ChecklistItem[];
+  createdAt: When;
+  updatedAt: When;
+  resolvedAt?: When;
 }
 
-export interface DnsRecord {
-  id: string;
-  type: 'CNAME' | 'A' | 'TXT' | 'AAAA' | 'MX';
-  host: string;
-  ttl: string;
-  targetValue: string;
-  status: 'PROPAGATED' | 'PENDING' | 'UPDATING';
-}
+export type TaskPriority = 'critical' | 'high' | 'routine';
+export type TaskCategory = 'security' | 'accounts' | 'network' | 'backup' | 'incident' | 'compliance';
 
-export interface OperatorProfile {
-  id: string;
-  callsign: string;
-  badgeNumber: string;
-  clearanceLevel: number; // 1 to 5
-  role: string;
-  station: string;
-  lastActive: string;
-  authToken: string;
-}
-
-export interface ProjectMilestone {
+export interface Task {
   id: string;
   title: string;
-  subsystem: string;
-  status: 'COMPLETED' | 'IN_PROGRESS' | 'SCHEDULED' | 'BLOCKED';
+  category: TaskCategory;
+  priority: TaskPriority;
+  dueAt: When;
+  done: boolean;
+  notified?: boolean;
+  createdAt: When;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  area: string;
+  status: 'planned' | 'in_progress' | 'done' | 'blocked';
   progress: number;
-  deadline: string;
-  lead: string;
+  deadline?: string; // yyyy-mm-dd
   notes: string;
-}
-
-export interface TaskReminder {
-  id: string;
-  title: string;
-  dueTime: string;
-  priority: 'CRITICAL' | 'HIGH' | 'ROUTINE';
-  notified: boolean;
-  category: 'SECURITY' | 'COMPLIANCE' | 'NETWORK' | 'INFRASTRUCTURE' | 'INCIDENT';
+  createdAt: When;
 }
 
 export interface EmergencyContact {
   id: string;
   name: string;
-  role: string;
+  relation: string;
   phone: string;
   priority: number;
+  createdAt: When;
 }
 
-export interface GeoLocationState {
-  latitude: number | null;
-  longitude: number | null;
-  accuracy: number | null;
-  altitude: number | null;
-  heading: number | null;
-  speed: number | null;
-  timestamp: number | null;
-  error: string | null;
-  trackingActive: boolean;
-  address?: string | null;
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'security' | 'task' | 'sos' | 'domain' | 'vault' | 'system';
+  read: boolean;
+  createdAt: When;
 }
 
-export interface SyncStatus {
-  isOnline: boolean;
-  lastSynced: string;
-  syncCycleSeconds: number;
-  pendingChanges: number;
-  clusterTarget: string;
-  safeRollbackActive: boolean;
+export interface DnsAnswer {
+  type: string;
+  data: string;
+  ttl: number;
+}
+
+export interface DomainScan {
+  at: number;
+  score: number;
+  dns: Record<string, DnsAnswer[]>;
+  dnssec: boolean;
+  spf: { present: boolean; record?: string; policy?: string };
+  dmarc: { present: boolean; record?: string; policy?: string };
+  caa: boolean;
+  site?: any; // response of /api/site-check
+  findings: { level: 'good' | 'warn' | 'bad' | 'info'; title: string; fix?: string }[];
+  changes?: string[];
+}
+
+export interface MonitoredDomain {
+  id: string;
+  domain: string;
+  verifyToken: string;
+  verified: boolean;
+  verifiedAt?: When;
+  lastScan?: DomainScan;
+  createdAt: When;
+}
+
+export interface CheckupResult {
+  id: string;
+  score: number;
+  checks: { id: string; label: string; status: 'pass' | 'warn' | 'fail' | 'info'; detail: string; fix?: string }[];
+  device: { os: string; browser: string };
+  createdAt: When;
+}
+
+export interface ComplianceState {
+  id: string; // framework id
+  controls: Record<string, { status: 'not_started' | 'in_progress' | 'implemented' | 'not_applicable'; notes?: string; updatedAt?: number }>;
+}
+
+export interface SosSession {
+  ownerUid: string;
+  ownerName: string;
+  active: boolean;
+  message: string;
+  startedAt: When;
+  endedAt?: When;
+  lastLocation?: { lat: number; lng: number; accuracy: number | null; source: string; at: number; address?: string | null };
 }

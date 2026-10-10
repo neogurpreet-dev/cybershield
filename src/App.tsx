@@ -1,338 +1,132 @@
-import React, { useState, useEffect } from 'react';
-import { SubsystemTab, SyncStatus } from './types';
-import { loadStore, saveStore, CybershieldStore } from './services/storage';
-import { notificationService, AppNotification } from './services/notifications';
-import { sound } from './services/audio';
-import { 
-  subscribeAuth, 
-  loginWithGoogle, 
-  logoutUser, 
-  saveUserCloudVault, 
-  loadUserCloudVault 
-} from './services/firebase';
-
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { Bot, Loader2 } from 'lucide-react';
+import type { SubsystemTab } from './types';
+import { isTab } from './nav';
+import { useAuth } from './hooks/useAuth';
+import { useTaskReminders } from './hooks/useTaskReminders';
+import { useTheme, type Theme } from './hooks/useTheme';
+import { Toaster } from './ui/ui';
+import { SignInScreen } from './components/SignInScreen';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
-import { NetworkDomainsView } from './components/NetworkDomainsView';
-import { LegalComplianceView } from './components/LegalComplianceView';
-import { OverviewView } from './components/OverviewView';
-import { EmergencySosView } from './components/EmergencySosView';
-import { VaultView } from './components/VaultView';
-import { AuthModal } from './components/AuthModal';
 import { CommandPalette } from './components/CommandPalette';
-import { LaptopProtectionModal } from './components/LaptopProtectionModal';
-import { IncidentDetailView } from './components/IncidentDetailView';
-import { SecurityIncident } from './types';
+import { ProfileModal } from './components/ProfileModal';
+import { AssistantPanel } from './components/AssistantPanel';
 
-export default function App() {
-  const [store, setStore] = useState<CybershieldStore>(() => loadStore());
-  const [activeTab, setActiveTab] = useState<SubsystemTab>('overview');
+const OverviewView = lazy(() => import('./views/OverviewView').then((m) => ({ default: m.OverviewView })));
+const ProtectionView = lazy(() => import('./views/ProtectionView').then((m) => ({ default: m.ProtectionView })));
+const IncidentsView = lazy(() => import('./views/IncidentsView').then((m) => ({ default: m.IncidentsView })));
+const DomainsView = lazy(() => import('./views/DomainsView').then((m) => ({ default: m.DomainsView })));
+const EmergencyView = lazy(() => import('./views/EmergencyView').then((m) => ({ default: m.EmergencyView })));
+const ComplianceView = lazy(() => import('./views/ComplianceView').then((m) => ({ default: m.ComplianceView })));
+const VaultView = lazy(() => import('./views/VaultView').then((m) => ({ default: m.VaultView })));
 
-  // Theming & Accessibility - Simple Mode defaults to TRUE for non-technical users!
-  const [simpleMode, setSimpleMode] = useState<boolean>(true);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('cybershield_theme');
-      if (saved) return saved === 'dark';
-      return true; // Default to tactical dark mode matching high-tech SOC
-    }
-    return true;
-  });
+function readTab(): SubsystemTab {
+  const h = window.location.hash.replace('#', '').split('/')[0];
+  return isTab(h) ? h : 'overview';
+}
 
-  const [isHighContrast, setIsHighContrast] = useState<boolean>(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+const Shell: React.FC<{ uid: string; theme: Theme }> = ({ uid, theme }) => {
+  const { signOutUser } = useAuth();
+  const [tab, setTabState] = useState<SubsystemTab>(readTab);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [profile, setProfile] = useState(false);
+  const [assistant, setAssistant] = useState(false);
+  useTaskReminders(uid);
 
-  // Firebase Auth state
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  const setTab = useCallback((t: SubsystemTab) => {
+    setTabState(t);
+    if (window.location.hash !== `#${t}`) window.history.pushState(null, '', `#${t}`);
+    window.scrollTo({ top: 0 });
+  }, []);
 
-  // Sync & Online state
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
-    isOnline: true,
-    lastSynced: 'Just now',
-    syncCycleSeconds: 15,
-    pendingChanges: 0,
-    clusterTarget: 'NODE-09',
-    safeRollbackActive: true,
-  });
-
-  // Modals & Palette
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showLaptopProtectionModal, setShowLaptopProtectionModal] = useState(false);
-
-  // Cluster Telemetry live simulation
-  const [clusterLatency, setClusterLatency] = useState(14);
-  const [threatBlockedRate, setThreatBlockedRate] = useState(99.98);
-
-  // Subscribe to Firebase Auth
   useEffect(() => {
-    const unsubAuth = subscribeAuth(async (user) => {
-      setFirebaseUser(user);
-      if (user) {
-        // Load cloud vault if exists
-        try {
-          const cloudData = await loadUserCloudVault(user.uid);
-          if (cloudData && cloudData.dnsRecords) {
-            setStore((prev) => ({ ...prev, ...cloudData }));
-            notificationService.send('Cloud Vault Loaded', `Welcome back, ${user.displayName || 'Operator'}! Your progress was restored.`);
-          }
-        } catch {
-          // Fallback to local
-        }
-      }
-    });
-
-    // Online / Offline listener
-    const handleOnline = () => {
-      setSyncStatus((prev) => ({ ...prev, isOnline: true }));
-      notificationService.send('Network Connected', 'Connected to cloud servers. Sync active.');
-    };
-    const handleOffline = () => {
-      setSyncStatus((prev) => ({ ...prev, isOnline: false }));
-      notificationService.send('Working Offline', 'Changes will be saved locally on your device.');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Periodic 15s sync heartbeat simulation & Cloud backup
-    const syncInterval = setInterval(() => {
-      if (syncStatus.isOnline && !store.isSimulatedOffline) {
-        setSyncStatus((prev) => ({
-          ...prev,
-          lastSynced: 'Just now',
-          pendingChanges: 0,
-        }));
-        setClusterLatency(Math.floor(12 + Math.random() * 4));
-
-        // Sync to Firebase if authenticated
-        if (firebaseUser) {
-          saveUserCloudVault(firebaseUser.uid, {
-            dnsRecords: store.dnsRecords,
-            milestones: store.milestones,
-            reminders: store.reminders,
-          }).catch(() => {});
-        }
-      }
-    }, 15000);
-
-    // Global keyboard shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onPop = () => setTabState(readTab());
+    const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setShowCommandPalette((prev) => !prev);
+        setPalette((p) => !p);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('keydown', onKey);
     return () => {
-      unsubAuth();
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      clearInterval(syncInterval);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('keydown', onKey);
     };
-  }, [store.isSimulatedOffline, syncStatus.isOnline, firebaseUser, store.dnsRecords, store.milestones, store.reminders]);
-
-  // Persist dark mode class to html element, body and localStorage
-  useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    if (isDarkMode) {
-      root.classList.add('dark');
-      root.setAttribute('data-theme', 'dark');
-      body.classList.add('dark');
-      body.setAttribute('data-theme', 'dark');
-      localStorage.setItem('cybershield_theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      root.setAttribute('data-theme', 'light');
-      body.classList.remove('dark');
-      body.setAttribute('data-theme', 'light');
-      localStorage.setItem('cybershield_theme', 'light');
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
-  };
-
-  const toggleHighContrast = () => {
-    setIsHighContrast((prev) => !prev);
-  };
-
-  const toggleSimpleMode = () => {
-    setSimpleMode((prev) => !prev);
-  };
-
-  const toggleSimulatedOffline = () => {
-    const nextVal = !store.isSimulatedOffline;
-    const updated = { ...store, isSimulatedOffline: nextVal };
-    setStore(updated);
-    saveStore(updated);
-    setSyncStatus((prev) => ({ ...prev, isOnline: !nextVal }));
-    notificationService.send(
-      nextVal ? 'Offline Test Active' : 'Online Mode Restored',
-      nextVal ? 'All data is now kept safely inside this device.' : 'Connected to cloud backup.'
-    );
-  };
-
-  const handleGoogleSignIn = async () => {
-    sound.playBeep(750, 0.05);
-    try {
-      const user = await loginWithGoogle();
-      if (user) {
-        sound.playSuccess();
-        notificationService.send('Google Sign-in Successful', `Identified as ${user.displayName || user.email}. Progress synced to Firestore.`);
-      }
-    } catch (err: any) {
-      sound.playWarning();
-      notificationService.send('Sign-in Notice', err.message || 'Google Sign-in popup closed.');
-    }
-  };
-
-  const handleGoogleSignOut = async () => {
-    sound.playBeep(600, 0.04);
-    await logoutUser();
-    notificationService.send('Signed Out', 'Your session has ended safely.');
-  };
+  }, []);
 
   return (
-    <div className={`${isDarkMode ? 'dark' : ''} min-h-screen flex flex-col bg-slate-100 dark:bg-[#070a0f] text-slate-800 dark:text-slate-200 transition-colors ${
-      isHighContrast ? 'contrast-125 saturate-150' : ''
-    }`}>
-      
-      {/* Top Header matching sketches */}
+    <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070a0f] text-slate-800 dark:text-slate-200 transition-colors ${theme.contrast ? 'contrast-125 saturate-150' : ''}`}>
       <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        operator={store.operator}
-        syncStatus={syncStatus}
-        onOpenAuth={() => setShowAuthModal(true)}
-        onOpenCommandPalette={() => setShowCommandPalette(true)}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
-        isHighContrast={isHighContrast}
-        toggleHighContrast={toggleHighContrast}
-        toggleSimulatedOffline={toggleSimulatedOffline}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-        firebaseUser={firebaseUser}
-        onGoogleSignIn={handleGoogleSignIn}
-        onGoogleSignOut={handleGoogleSignOut}
-        onOpenLaptopProtection={() => setShowLaptopProtectionModal(true)}
+        activeTab={tab}
+        setActiveTab={setTab}
+        onOpenProfile={() => setProfile(true)}
+        onOpenCommandPalette={() => setPalette(true)}
+        isDarkMode={theme.dark}
+        toggleDarkMode={theme.toggleDark}
+        isHighContrast={theme.contrast}
+        toggleHighContrast={theme.toggleContrast}
+        mobileMenuOpen={mobileMenu}
+        setMobileMenuOpen={setMobileMenu}
       />
-
-      {/* Main Layout Area */}
       <div className="flex-1 flex max-w-[1700px] w-full mx-auto">
-        
-        {/* Desktop Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          clusterLatency={clusterLatency}
-          threatBlockedRate={threatBlockedRate}
-          onQuickSos={() => {
-            setActiveTab('emergency');
-            sound.playWarning();
-          }}
-          onOpenLaptopProtection={() => setShowLaptopProtectionModal(true)}
-        />
-
-        {/* Central Workspace Content */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 overflow-y-auto">
-          
-          {/* Active Subsystem View */}
-          {activeTab === 'incident' && (
-            <IncidentDetailView
-              onBack={() => setActiveTab('overview')}
-            />
-          )}
-
-          {activeTab === 'network' && (
-            <NetworkDomainsView 
-              store={store} 
-              setStore={setStore} 
-            />
-          )}
-
-          {activeTab === 'compliance' && (
-            <LegalComplianceView />
-          )}
-
-          {activeTab === 'overview' && (
-            <OverviewView
-              store={store}
-              setStore={setStore}
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-              onOpenLaptopProtection={() => setShowLaptopProtectionModal(true)}
-            />
-          )}
-
-          {activeTab === 'emergency' && (
-            <EmergencySosView
-              operator={store.operator}
-              emergencyContacts={store.emergencyContacts}
-              onAddContact={(contact) => {
-                const updated = { ...store, emergencyContacts: [...store.emergencyContacts, contact] };
-                setStore(updated);
-                saveStore(updated);
-              }}
-              onDeleteContact={(id) => {
-                const updated = { ...store, emergencyContacts: store.emergencyContacts.filter(c => c.id !== id) };
-                setStore(updated);
-                saveStore(updated);
-              }}
-            />
-          )}
-
-          {activeTab === 'vault' && (
-            <VaultView
-              store={store}
-              setStore={setStore}
-              syncStatus={syncStatus}
-              setSyncStatus={setSyncStatus}
-            />
-          )}
-
+        <Sidebar activeTab={tab} setActiveTab={setTab} onQuickSos={() => setTab('emergency')} />
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 pb-28 lg:pb-8">
+          <Suspense fallback={<div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}>
+          {tab === 'overview' && <OverviewView onNavigate={setTab} />}
+          {tab === 'protection' && <ProtectionView onNavigate={setTab} />}
+          {tab === 'incident' && <IncidentsView />}
+          {tab === 'network' && <DomainsView />}
+          {tab === 'emergency' && <EmergencyView />}
+          {tab === 'compliance' && <ComplianceView />}
+          {tab === 'vault' && <VaultView />}
+          </Suspense>
         </main>
       </div>
+      <MobileNav activeTab={tab} setActiveTab={setTab} />
 
-      {/* Mobile Bottom Navigation Bar (Matches sketch bottom bar) */}
-      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      {/* Modals */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        operator={store.operator}
-        setOperator={(op) => {
-          const updated = { ...store, operator: op };
-          setStore(updated);
-          saveStore(updated);
-        }}
-      />
-
+      {!assistant && (
+        <button
+          onClick={() => setAssistant(true)}
+          className="fixed z-40 right-4 bottom-20 lg:bottom-6 flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-lg cursor-pointer no-print"
+          aria-label="Open the AI Safety Guide"
+        >
+          <Bot className="w-4 h-4" /> <span className="hidden sm:inline">Ask</span> Safety Guide
+        </button>
+      )}
+      <AssistantPanel open={assistant} onOpen={() => setAssistant(true)} onClose={() => setAssistant(false)} />
       <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        onSelectTab={(tab) => setActiveTab(tab)}
-        onTriggerSos={() => {
-          setActiveTab('emergency');
-          sound.playWarning();
-        }}
-        toggleDarkMode={toggleDarkMode}
-        toggleOffline={toggleSimulatedOffline}
-        onOpenLaptopProtection={() => setShowLaptopProtectionModal(true)}
+        isOpen={palette}
+        onClose={() => setPalette(false)}
+        onSelectTab={setTab}
+        toggleDarkMode={theme.toggleDark}
+        onOpenAssistant={() => setAssistant(true)}
+        onOpenProfile={() => setProfile(true)}
+        onSignOut={signOutUser}
       />
-
-      {/* Dedicated Laptop Protection Center Modal */}
-      <LaptopProtectionModal
-        isOpen={showLaptopProtectionModal}
-        onClose={() => setShowLaptopProtectionModal(false)}
-      />
-
+      <ProfileModal open={profile} onClose={() => setProfile(false)} />
     </div>
+  );
+};
+
+export default function App() {
+  const { user, loading } = useAuth();
+  const theme = useTheme();
+  return (
+    <>
+      {loading ? (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-[#070a0f] text-slate-500 text-sm gap-2">
+          <Loader2 className="w-5 h-5 animate-spin" /> Loading CyberShield…
+        </div>
+      ) : user ? (
+        <Shell key={user.uid} uid={user.uid} theme={theme} />
+      ) : (
+        <SignInScreen />
+      )}
+      <Toaster />
+    </>
   );
 }

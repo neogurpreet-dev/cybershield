@@ -56,3 +56,23 @@
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(51, 65, 85, 0.8);
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.18s ease-out both; }
+
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+.animate-spin-slow { animation: spinSlow 6s linear infinite; }
+
+.safe-area-pb { padding-bottom: max(0.375rem, env(safe-area-inset-bottom)); }
+
+/* Leaflet map container should respect rounded corners and dark mode */
+.leaflet-container { font-family: inherit; background: #e2e8f0; }
+.dark .leaflet-container { background: #0f172a; }
+.dark .leaflet-tile { filter: brightness(0.75) contrast(1.1) saturate(0.8); }
+
+@media print {
+  header, aside, nav, .no-print { display: none !important; }
+}

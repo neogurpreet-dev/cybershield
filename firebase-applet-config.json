@@ -1,12 +1,8 @@
 {
-  "projectId": "aqueous-jar-hkx2q",
-  "appId": "1:632221117373:web:fe7462b1c938b03119c0d4",
-  "apiKey": "AIzaSyAJcb91lExjCVTrdo-H9kusgGF6n7PtpLw",
-  "authDomain": "aqueous-jar-hkx2q.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-cybershield-143e8b3c-ca05-40cb-9798-e1cc7f8d2371",
-  "storageBucket": "aqueous-jar-hkx2q.firebasestorage.app",
-  "messagingSenderId": "632221117373",
-  "measurementId": "",
-  "oAuthClientId": "632221117373-kg2nqrp62dt37ij4324ev86vthh0dlj9.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "apiKey": "AIzaSyC2xVzYl7QlJvx-bJPWUmy3yPUjABAZdYo",
+  "authDomain": "cybershield-faf03.firebaseapp.com",
+  "projectId": "cybershield-faf03",
+  "storageBucket": "cybershield-faf03.firebasestorage.app",
+  "messagingSenderId": "944586199537",
+  "appId": "1:944586199537:web:00357975f4f12bc185f450"
 }

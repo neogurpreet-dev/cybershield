@@ -1,102 +1,44 @@
-# CyberShield: Mission-Critical Security Operations & Incident Response Center
+# CyberShield
 
-CyberShield is an enterprise-grade Security Operations Center (SOC), Threat Intelligence, and Domain Management platform. It delivers real-time incident triage, automated remediation workflows, regulatory compliance tracking, and bio-defense scientific intelligence in a responsive, accessible interface designed for both seasoned security analysts and non-technical stakeholders.
+Personal security and emergency toolkit. Live at **https://cybershield-tau-one.vercel.app**.
 
----
+Every feature works on real data and is private to each signed-in user. Nothing is simulated.
 
-## 🌟 Key Subsystems & Features
+## Features
 
-### 1. Incident Response & Threat Intelligence (`Incident #87795`)
-* **Incident Header & Identifiers**: Visual badges (`Informational`, `Escalated`, `v1 of 1`, `L3`), tenant tracking (`WC-ACME-INC-263223`), and one-tap incident number copying.
-* **Plain-Language Incident Translation**: Automatic translation of complex telemetry into clear, jargon-free explanations (e.g., *"‘Gracing’ malware was prevented — the threat was stopped before any files could be damaged or stolen"*).
-* **Report Sections**:
-  * **Summary**: Executive overview of malware containment and heuristic triggers.
-  * **Full Report**: Technical security engineering log with SHA-256 hashes, host vectors, and quarantine status.
-  * **Decisions**: SOC triage logs, automated firewall blacklisting, and compliance directives.
-  * **Timeline**: Interactive chronological slide-up sheet with expandable nodes, triage levels (`High triage`, `Medium triage`, `Resolved`), and granular event details.
-* **Report Downloads**: Generate and export reports in **PDF** or **DOCX** format.
-* **Incident AI Q&A**: One-click *"Ask about this incident"* button that opens the AI assistant with pre-loaded context.
+| Area | What it actually does |
+|---|---|
+| **Protection** | **Link checker**: the server measures domain registration age (RDAP), the TLS certificate, the redirect chain, page signals and URL red flags, then Gemini weighs the evidence and explains the verdict in plain English. Dangerous links open an incident automatically. **Password leak check**: Have I Been Pwned with k-anonymity, so the password never leaves the device. **Browser checkup**: browser version against official release feeds, Windows 10 end-of-support, WebRTC local-IP leak, Global Privacy Control, and SOS permissions. |
+| **Incidents** | Per-user incidents with auto-generated recovery checklists, a timeline, status and severity tracking, and **PDF / Word export**. "Ask AI about this" opens the assistant with the incident as context. |
+| **Domains** | Live DNS records (DNS-over-HTTPS), DNSSEC, SPF/DMARC, a real TLS certificate check, HTTP security-header grading, HTTP→HTTPS redirect check, ownership verification via a TXT record, and change detection between scans with alerts. |
+| **Emergency SOS** | GPS, then Wi-Fi, then IP fallback, clearly labelled and never with invented coordinates. A 5-second countdown, a siren, and a **public live-tracking link** (`/track/<id>`) that updates while SOS is active. One-tap WhatsApp/SMS/call to your contacts, real nearby hospitals, police and fire stations (OpenStreetMap Overpass), and a dispatcher script in English and Hindi. |
+| **Vault** | Zero-knowledge: AES-256-GCM with a PBKDF2-SHA256 (600k) key derived from your passphrase in the browser. Only ciphertext is stored. Auto-lock, password generator, breach check per entry, encrypted backup and import, and passphrase change. |
+| **Compliance** | A saved self-assessment for ISO 27001 (selected Annex A), India DPDP / GDPR and SOC 2, with CSV export. Truthful privacy policy and terms for this app. |
+| **Overview** | Activity chart built from your real checks, status cards, safety-habit checklist, tasks with due-date reminders, and goals. |
+| **Safety Guide** | Gemini assistant for plain-English security and scam questions. |
 
----
+## Stack
 
-### 2. Network & Domain Infrastructure (`DNS / SSL`)
-* **Active DNS Zone Management**: Add, update, and remove `A`, `CNAME`, `TXT`, `AAAA`, and `MX` records with propagation timers.
-* **Real-time DNS & SSL Health Checks**: Visual checks for TLS 1.3 encryption, proxy shielding, and DNSSEC validation.
-* **Search & Filters**: Instant record filtering by hostname, record type, or propagation status.
+- React 19, Vite, Tailwind CSS v4, Recharts, Leaflet (OpenStreetMap), jsPDF, docx
+- **Firebase**: Google Auth, plus Cloud Firestore (asia-south1) with offline persistence and per-user security rules (`firestore.rules`)
+- **Vercel Functions** (`api/`): `url-check`, `site-check`, `assistant`, `status`. Every endpoint except `status` requires a Firebase ID token (verified with Google's public keys, so no service-account secret is needed) and refuses private or internal network targets.
 
----
+## Run locally
 
-### 3. Legal & Regulatory Compliance
-* **Standard Audits**: Real-time status trackers for **ISO-27001**, **GDPR**, **SOC 2 Type II**, and **HIPAA**.
-* **Audit Trail & Evidence**: Logged compliance milestones, risk matrices, and cryptographic verification logs.
-
----
-
-### 4. Cryptographic Vault & Disaster Recovery
-* **Secure Vault Storage**: Local-first encrypted key-value vault with safe rollback protection and Firebase Firestore synchronization.
-* **Offline Resilience**: Full functionality in low-connectivity or offline scenarios using `localStorage` caching.
-* **Disaster Recovery**: Export and import complete snapshots of DNS records, reverse proxy bindings, and operator credentials.
-
----
-
-### 5. Emergency SOS & Distress Beacon
-* **Live GPS Tracking**: Real-time browser geolocation tracking with latitude, longitude, altitude, and heading telemetry.
-* **5-Second Countdown Beacon**: Emergency activation mechanism with siren audio built on the Web Audio API.
-* **Emergency Dispatch**: Automated contact priority notifications and pre-formatted SOS distress dispatches.
-
----
-
-### 6. Recharts Threat Mitigation Visualization
-* **Dynamic Timeframe Telemetry**: Interactive 7-Day and 30-Day trend graphs comparing threats mitigated against heuristic repulsion rate.
-* **Detailed Hover Tooltips**: Real-time breakdown of neutralized exploits, quarantined payloads, and active SOC defense score.
-* **Summary Performance Badges**: Fast-glance indices for current block rates and total neutralized vectors.
-
----
-
-## 🎨 Accessibility & Theme Support
-
-* **Tactical Dark Mode & Clean Light Mode**: Bulletproof dual-theme engine synchronized across `<html>`, `<body>`, `data-theme`, and `localStorage`.
-* **High Contrast Mode**: One-click high-contrast mode for visibility in high-glare environments.
-* **Tactical Sound Engine**: Synthesizer audio feedback for tactical alerts, button clicks, and warnings generated via Web Audio API.
-
----
-
-## 🛠️ Tech Stack & Architecture
-
-* **Framework**: React 19 (TypeScript)
-* **Data Visualization**: Recharts (Responsive Area and Line charts)
-* **Bundler & Tooling**: Vite 6, Tailwind CSS v4
-* **Icons**: Lucide React
-* **Tactical Audio**: Web Audio API
-* **Cloud Sync & Persistence**: Firebase Firestore (`ai-studio-cybershield-*`), Google Authentication
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-* Node.js (v18 or higher recommended)
-* npm or pnpm
-
-### Installation & Development
 ```bash
-# Install dependencies
 npm install
-
-# Start local development server (runs on port 3000)
-npm run dev
-
-# Run linter and type-checker
-npm run lint
-
-# Build production bundle
-npm run build
+cp .env.example .env.local   # add GEMINI_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
----
+`npm run lint` type-checks the app and the API. `npm run build` builds the site into `dist/`.
 
-## 🔒 Security & Privacy
+## Deploy
 
-* **Offline-First Resilience**: All configurations and state persist securely in browser storage.
-* **Client-Side Privacy**: Synthesizer audio and interactive visual telemetry process directly on-device.
-* **Encrypted Storage**: Critical node configurations can be locked behind clearance credentials in the Vault.
+1. Vercel project settings: add the environment variable `GEMINI_API_KEY`.
+2. Firebase console: add your deployed domain under Authentication → Settings → Authorised domains.
+3. Publish `firestore.rules` in Firestore → Rules.
+
+## Honest limits
+
+A website cannot scan your disk or remove malware. Use Windows Security or your phone's built-in protection for that. AI verdicts can be wrong. SOS cannot send SMS by itself: it opens WhatsApp or SMS with the message ready to send. In an emergency in India, call **112**. For cyber fraud, call **1930**.
